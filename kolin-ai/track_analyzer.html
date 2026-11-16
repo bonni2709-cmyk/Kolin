@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KolinAI · Анализатор трека</title>
+<style>
+  :root{
+    --bg:#0b0e14; --card:#131826; --card2:#0f1420; --line:#232c40;
+    --tx:#e8ecf6; --dim:#8b96ad; --acc:#8b5cf6; --acc2:#22d3ee;
+    --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:var(--bg); color:var(--tx); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:24px 16px 60px}
+  .wrap{max-width:1060px; margin:0 auto}
+  header{margin-bottom:22px}
+  h1{font-size:26px; font-weight:800; letter-spacing:.3px}
+  h1 b{color:var(--acc)}
+  .sub{color:var(--dim); margin-top:6px; font-size:14px}
+  .sub b{color:var(--acc2); font-weight:600}
+
+  #drop{border:2px dashed #35405c; border-radius:16px; background:var(--card2);
+    padding:54px 20px; text-align:center; cursor:pointer; transition:.15s}
+  #drop:hover,#drop.over{border-color:var(--acc); background:#151b2e}
+  #drop .big{font-size:18px; font-weight:700}
+  #drop .fmt{color:var(--dim); font-size:13px; margin-top:8px}
+  #drop.err{border-color:var(--bad)}
+  #errMsg{color:var(--bad); margin-top:10px; font-size:14px; display:none}
+
+  #prog{margin-top:18px; display:none}
+  .bar{height:8px; border-radius:99px; background:#1b2234; overflow:hidden}
+  #barfill{height:100%; width:0%; background:linear-gradient(90deg,var(--acc),var(--acc2)); transition:width .2s}
+  #ptext{color:var(--dim); font-size:13px; margin-top:8px}
+
+  #res{display:none; margin-top:26px}
+  .info{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:16px}
+  .info .cell{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 14px}
+  .info .k{color:var(--dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.6px}
+  .info .v{font-size:15px; font-weight:600; margin-top:2px; word-break:break-all}
+
+  .big2{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px}
+  @media(max-width:720px){.big2{grid-template-columns:1fr}}
+  .hero{background:linear-gradient(160deg,#191330,#101726); border:1px solid var(--line); border-radius:14px; padding:18px 20px; position:relative; overflow:hidden}
+  .hero .lbl{color:var(--dim); font-size:12px; text-transform:uppercase; letter-spacing:1px}
+  .hero .num{font-size:44px; font-weight:800; line-height:1.1; color:#fff}
+  .hero .num small{font-size:17px; color:var(--dim); font-weight:600}
+  .hero .det{color:var(--dim); font-size:13.5px; margin-top:6px}
+  .hero .det b{color:var(--acc2); font-weight:600}
+  .hero .glow{position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle,#8b5cf633,transparent 70%)}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:14px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:13px 15px}
+  .card .k{color:var(--dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.6px}
+  .card .v{font-size:21px; font-weight:700; margin-top:3px}
+  .card .v small{font-size:12.5px; color:var(--dim); font-weight:600}
+  .card .c{color:var(--dim); font-size:12px; margin-top:3px}
+
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:14px}
+  .panel h3{font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin-bottom:12px; font-weight:700}
+  canvas{width:100%; display:block; border-radius:8px}
+  #wave{height:110px; background:#0d1220; cursor:pointer}
+  #spec{height:190px; background:#0d1220}
+  .player{display:flex; align-items:center; gap:14px; margin-top:12px}
+  .pbtn{width:44px; height:44px; border-radius:50%; border:none; cursor:pointer; font-size:17px;
+    background:linear-gradient(135deg,var(--acc),#6d28d9); color:#fff; flex:0 0 auto}
+  .pbtn:hover{filter:brightness(1.15)}
+  #time{color:var(--dim); font-variant-numeric:tabular-nums; font-size:14px}
+  .hint{color:var(--dim); font-size:13px}
+
+  table{width:100%; border-collapse:collapse; font-size:14px}
+  th{color:var(--dim); text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.6px; padding:6px 8px; border-bottom:1px solid var(--line)}
+  td{padding:9px 8px; border-bottom:1px solid #1a2133; vertical-align:top}
+  td.v{white-space:nowrap; font-weight:600; font-variant-numeric:tabular-nums}
+  .st{font-weight:700}
+  .st.ok{color:var(--ok)} .st.warn{color:var(--warn)} .st.bad{color:var(--bad)}
+  td.c{color:var(--dim); font-size:13px}
+
+  .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px}
+  .btn{background:linear-gradient(135deg,var(--acc),#6d28d9); color:#fff; border:none; border-radius:10px;
+    padding:11px 20px; font-size:14px; font-weight:600; cursor:pointer}
+  .btn:hover{filter:brightness(1.15)}
+  .btn.ghost{background:var(--card); border:1px solid var(--line); color:var(--tx)}
+  footer{margin-top:26px; color:var(--dim); font-size:12.5px; text-align:center}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><b>KolinAI</b> · Анализатор трека</h1>
+    <div class="sub">Профессиональный разбор: BPM, тональность, LUFS, динамика, стерео, спектр, вердикты мастеринга.
+      <b>Работает офлайн — твой файл никуда не отправляется</b>, весь анализ идёт в браузере.</div>
+  </header>
+
+  <div id="drop">
+    <div class="big">Перетащи сюда аудиофайл или нажми, чтобы выбрать</div>
+    <div class="fmt">mp3 · wav · ogg · flac · m4a — декодирует браузер. Один трек за раз.</div>
+    <div id="errMsg"></div>
+  </div>
+  <input type="file" id="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus">
+
+  <div id="prog">
+    <div class="bar"><div id="barfill"></div></div>
+    <div id="ptext">…</div>
+  </div>
+
+  <div id="res">
+    <div class="info" id="infoRow"></div>
+
+    <div class="big2">
+      <div class="hero"><div class="glow"></div>
+        <div class="lbl">Темп</div>
+        <div class="num" id="bpmNum">—</div>
+        <div class="det" id="bpmDet"></div>
+      </div>
+      <div class="hero"><div class="glow"></div>
+        <div class="lbl">Тональность</div>
+        <div class="num" id="keyNum">—</div>
+        <div class="det" id="keyDet"></div>
+      </div>
+    </div>
+
+    <div class="cards" id="metricCards"></div>
+
+    <div class="panel">
+      <h3>Форма волны · нажми, чтобы перемотать</h3>
+      <canvas id="wave"></canvas>
+      <div class="player">
+        <button class="pbtn" id="playBtn">▶</button>
+        <div id="time">0:00 / 0:00</div>
+        <div class="hint">громкость — системная</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Средний спектр · 31 полоса</h3>
+      <canvas id="spec"></canvas>
+      <div class="hint" id="specHints" style="margin-top:10px"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Проверка мастеринга · цель стриминга: −14 LUFS, пик ≤ −1 дБ</h3>
+      <table>
+        <thead><tr><th>Параметр</th><th>Значение</th><th>Оценка</th><th>Комментарий</th></tr></thead>
+        <tbody id="masterBody"></tbody>
+      </table>
+    </div>
+
+    <div class="btns">
+      <button class="btn" id="txtBtn">Скачать отчёт .txt</button>
+      <button class="btn ghost" id="copyBtn">Копировать отчёт</button>
+      <button class="btn ghost" id="againBtn">Другой файл</button>
+    </div>
+  </div>
+
+  <footer>KolinAI Track Analyzer · весь анализ выполняется локально в твоём браузере · метрики: LUFS по EBU R128, тональность по профилям Крумхансл, BPM по спектральному потоку</footer>
+</div>
+
+<script>
+"use strict";
+/* ---------- состояние ---------- */
+var S = {buf:null, mono:null, sr:0, ch:2, dur:0, name:"", size:0, R:null};
+var actx = null;
+function getCtx(){
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  return actx;
+}
+function $(id){ return document.getElementById(id); }
+var tick = function(){ return new Promise(function(r){ setTimeout(r,0); }); };
+
+/* ---------- утилиты ---------- */
+function fmtTime(t){
+  t = Math.max(0, t||0);
+  var m = Math.floor(t/60), s = Math.floor(t%60);
+  return m + ":" + (s<10?"0":"") + s;
+}
+function fmtDb(x){ return (x===null||!isFinite(x)) ? "—" : x.toFixed(1) + " дБ"; }
+function fmtHz(f){
+  if(f>=1000) return (f/1000).toFixed(1) + " кГц";
+  return Math.round(f) + " Гц";
+}
+function pctile(sorted, p){
+  if(!sorted.length) return NaN;
+  var i = Math.min(sorted.length-1, Math.max(0, Math.ceil(p/100*(sorted.length-1))));
+  return sorted[i];
+}
+function pearson(a,b){
+  var ma=0, mb=0, i;
+  for(i=0;i<a.length;i++){ ma+=a[i]; mb+=b[i]; }
+  ma/=a.length; mb/=b.length;
+  var num=0, da=0, db=0;
+  for(i=0;i<a.length;i++){
+    var x=a[i]-ma, y=b[i]-mb;
+    num+=x*y; da+=x*x; db+=y*y;
+  }
+  return num/Math.sqrt(da*db+1e-30);
+}
+
+/* ---------- FFT (radix-2, на месте) ---------- */
+function makeFFT(n){
+  var levels = Math.round(Math.log2(n));
+  var cos = new Float32Array(n/2), sin = new Float32Array(n/2);
+  for(var i=0;i<n/2;i++){ cos[i]=Math.cos(2*Math.PI*i/n); sin[i]=Math.sin(2*Math.PI*i/n); }
+  var rev = new Uint32Array(n);
+  for(i=0;i<n;i++){
+    var r=0, x=i;
+    for(var j=0;j<levels;j++){ r=(r<<1)|(x&1); x>>=1; }
+    rev[i]=r;
+  }
+  return function(re, im){
+    var i,j,t;
+    for(i=0;i<n;i++){
+      j=rev[i];
+      if(j>i){ t=re[i]; re[i]=re[j]; re[j]=t; t=im[i]; im[i]=im[j]; im[j]=t; }
+    }
+    for(var size=2; size<=n; size<<=1){
+      var half=size>>1, step=n/size;
+      for(i=0;i<n;i+=size){
+        for(j=i, t=0; j<i+half; j++, t+=step){
+          var c=cos[t], s=-sin[t];
+          var ar=re[j+half], ai=im[j+half];
+          var tre=ar*c - ai*s;
+          var tim=ar*s + ai*c;
+          re[j+half]=re[j]-tre; im[j+half]=im[j]-tim;
+          re[j]+=tre; im[j]+=tim;
+        }
+      }
+    }
+  };
+}
+
+/* ---------- биквад-фильтр (DF2T, на месте) ---------- */
+function biquad(x, b0, b1, b2, a1, a2){
+  var z1=0, z2=0, i;
+  for(i=0;i<x.length;i++){
+    var xi=x[i];
+    var y = b0*xi + z1;
+    z1 = b1*xi - a1*y + z2;
+    z2 = b2*xi - a2*y;
+    x[i]=y;
+  }
+}
+/* К-взвешивание по ITU BS.1770 (RBJ-реализация, как в pyloudnorm) */
+function kWeight(x, fs){
+  var A = Math.pow(10, 3.999843853973347/40);
+  var w0 = 2*Math.PI*1681.974450955533/fs;
+  var al = Math.sin(w0)/(2*0.7071752369554196);
+  var cw = Math.cos(w0), sq = Math.sqrt(A);
+  var b0 = A*((A+1)+(A-1)*cw+2*sq*al), b1 = -2*A*((A-1)+(A+1)*cw),
+      b2 = A*((A+1)+(A-1)*cw-2*sq*al),
+      a0 = (A+1)-(A-1)*cw+2*sq*al, a1 = 2*((A-1)-(A+1)*cw), a2 = (A+1)-(A-1)*cw-2*sq*al;
+  biquad(x, b0/a0, b1/a0, b2/a0, a1/a0, a2/a0);
+  var w1 = 2*Math.PI*38.13547087602444/fs;
+  var al1 = Math.sin(w1)/(2*0.5003271053763979);
+  var c1 = Math.cos(w1);
+  b0=(1+c1)/2; b1=-(1+c1); b2=(1+c1)/2;
+  a0=1+al1; a1=-2*c1; a2=1-al1;
+  biquad(x, b0/a0, b1/a0, b2/a0, a1/a0, a2/a0);
+}
+function loudnessStats(y, fs){
+  var bs=Math.round(0.4*fs), st=Math.round(0.1*fs), i, s;
+  var Ls=[], Ms=[];
+  for(s=0; s+bs<=y.length; s+=st){
+    var sum=0;
+    for(i=s;i<s+bs;i++) sum+=y[i]*y[i];
+    var ms=sum/bs;
+    Ms.push(ms); Ls.push(-0.691+10*Math.log10(ms+1e-20));
+  }
+  var res={int:-70, mom:-70, st:-70, lra:0, ok:false};
+  if(!Ls.length) return res;
+  var m1=0, n1=0;
+  for(i=0;i<Ls.length;i++) if(Ls[i]>-70){ m1+=Ms[i]; n1++; }
+  if(!n1) return res;
+  m1/=n1;
+  var Lr=-0.691+10*Math.log10(m1);
+  var m2=0, n2=0;
+  for(i=0;i<Ls.length;i++) if(Ls[i]>-70 && Ls[i]>Lr-10){ m2+=Ms[i]; n2++; }
+  res.int = n2 ? (-0.691+10*Math.log10(m2/n2)) : Lr;
+  res.mom = Math.max.apply(null, Ls);
+  res.ok = true;
+  /* краткосрочные 3 с */
+  var bs3=Math.round(3*fs), st3=Math.round(1*fs), ST=[];
+  if(y.length>=bs3){
+    for(s=0; s+bs3<=y.length; s+=st3){
+      var s3=0;
+      for(i=s;i<s+bs3;i++) s3+=y[i]*y[i];
+      ST.push(-0.691+10*Math.log10(s3/bs3+1e-20));
+    }
+  }
+  res.st = ST.length ? Math.max.apply(null, ST) : res.mom;
+  /* LRA */
+  if(ST.length>1){
+    var g=ST.filter(function(v){return v>-70;}).sort(function(a,b){return a-b;});
+    if(g.length>1){
+      var me=0;
+      for(i=0;i<g.length;i++) me+=Math.pow(10,(g[i]+0.691)/10);
+      me/=g.length;
+      var gate=-0.691+10*Math.log10(me)-20;
+      var gg=g.filter(function(v){return v>gate;});
+      var arr = gg.length>1 ? gg : g;
+      res.lra = pctile(arr,95)-pctile(arr,10);
+    }
+  }
+  return res;
+}
+
+/* ---------- BPM: спектральный поток + автокорреляция ---------- */
+function detectBPM(env, fps){
+  var M=env.length, i, j;
+  if(M < fps*4) return null;
+  var sm=new Float32Array(M);
+  for(i=1;i<M-1;i++) sm[i]=(env[i-1]+2*env[i]+env[i+1])/4;
+  var W=Math.round(fps);
+  var det=new Float32Array(M);
+  for(i=0;i<M;i++){
+    var s=0, c=0;
+    for(j=Math.max(0,i-W); j<=Math.min(M-1,i+W); j++){ s+=sm[j]; c++; }
+    det[i]=Math.max(0, sm[i]-s/c);
+  }
+  var Lmin=Math.max(2, Math.round(60/200*fps));
+  var Lmax=Math.min(M-3, Math.round(60/60*fps));
+  var scores=[], raw={}, best=null, mean=0;
+  for(var L=Lmin; L<=Lmax; L++){
+    var acc=0;
+    for(i=0;i+L<M;i++) acc+=det[i]*det[i+L];
+    var r=acc/(M-L);
+    raw[L]=r;
+    var bpm=60*fps/L;
+    var w=Math.exp(-0.5*Math.pow((bpm-120)/45,2));
+    var sc={L:L, bpm:bpm, raw:r, score:r*w};
+    scores.push(sc); mean+=r;
+    if(!best || sc.score>best.score) best=sc;
+  }
+  if(!best) return null;
+  mean/=scores.length;
+  /* параболическое уточнение */
+  var bi=scores.indexOf(best);
+  var bpmF=best.bpm;
+  if(bi>0 && bi<scores.length-1){
+    var a=scores[bi-1].score, b=scores[bi].score, c=scores[bi+1].score;
+    var den=a-2*b+c;
+    if(Math.abs(den)>1e-12){
+      var d=0.5*(a-c)/den;
+      if(d>-0.6 && d<0.6) bpmF=60*fps/(best.L+d);
+    }
+  }
+  /* складывание октав: показываем альтернативу, авто-складка только на краях диапазона */
+  var alt=null;
+  function rawAt(L){
+    L=Math.round(L);
+    var k=0;
+    while(L+k<=Lmax || L-k>=Lmin){
+      if(raw[L+k]!==undefined) return raw[L+k];
+      if(L-k>=Lmin && raw[L-k]!==undefined) return raw[L-k];
+      k++;
+      if(k>3) break;
+    }
+    return 0;
+  }
+  var rUp = bpmF<160 ? rawAt(best.L/2)/best.raw : 0;   /* вариант ×2 */
+  var rDn = bpmF>75 ? rawAt(best.L*2)/best.raw : 0;    /* вариант ÷2 */
+  if(rUp>0.55 && rUp>=rDn) alt={bpm:bpmF*2, dir:"×2"};
+  else if(rDn>0.55) alt={bpm:bpmF/2, dir:"÷2"};
+  if(bpmF<70 && rUp>0.65){ bpmF*=2; alt=null; }
+  else if(bpmF>185 && rDn>0.65){ bpmF/=2; alt=null; }
+  var conf=Math.max(5, Math.min(95, Math.round(100*(1-mean/best.raw))));
+  return {bpm:bpmF, conf:conf, alt:alt};
+}
+
+/* ---------- тональность: профили Крумхансл-Шмуклера ---------- */
+var KS_MAJ=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+var KS_MIN=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+var NOTE_RU=["До","До♯","Ре","Ре♯","Ми","Фа","Фа♯","Соль","Соль♯","Ля","Ля♯","Си"];
+var NOTE_EN=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+var CAMELOT_MAJ=["8B","3B","10B","5B","12B","7B","2B","9B","4B","11B","6B","1B"];
+var CAMELOT_MIN=["5A","12A","7A","2A","9A","4A","11A","6A","1A","8A","3A","10A"];
+function rotateProfile(prof, t){
+  var out=new Array(12);
+  for(var i=0;i<12;i++) out[i]=prof[(i-t+24)%12];
+  return out;
+}
+function detectKey(chroma){
+  var cands=[], t;
+  for(t=0;t<12;t++){
+    cands.push({t:t, min:false, r:pearson(chroma, rotateProfile(KS_MAJ,t))});
+    cands.push({t:t, min:true,  r:pearson(chroma, rotateProfile(KS_MIN,t))});
+  }
+  cands.sort(function(a,b){ return b.r-a.r; });
+  var best=cands[0];
+  var conf=Math.max(45, Math.min(97, Math.round(45+(best.r-cands[1].r)*220+best.r*30)));
+  var name = NOTE_RU[best.t]+" "+(best.min?"минор":"мажор");
+  var en = NOTE_EN[best.t]+(best.min?"m":"");
+  var cam = best.min ? CAMELOT_MIN[best.t] : CAMELOT_MAJ[best.t];
+  var alts = cands.slice(1,3).map(function(c){
+    return NOTE_RU[c.t]+" "+(c.min?"минор":"мажор")+" ("+(c.min?CAMELOT_MIN[c.t]:CAMELOT_MAJ[c.t])+")";
+  }).join(", ");
+  return {name:name, en:en, camelot:cam, conf:conf, alts:alts};
+}
+
+/* ---------- полосы спектра ---------- */
+var CENTERS=[20,25,31.5,40,50,63,80,100,125,160,200,250,315,400,500,630,800,1000,1250,1600,2000,2500,3150,4000,5000,6300,8000,10000,12500,16000,20000];
+
+/* ---------- основной анализ ---------- */
+async function analyzeAll(prog){
+  var N=4096, hop=1024, half=N/2;
+  var sr=S.sr, mono=S.mono, n=mono.length;
+  var binHz=sr/N, fps=sr/hop;
+  if(n < N*8) throw new Error("файл слишком короткий для анализа (нужно хотя бы ~1 секунда)");
+
+  /* предрасчёты привязки бинов */
+  var pcOfBin=new Uint8Array(half+1), bandOfBin=new Uint8Array(half+1);
+  var i,k;
+  for(k=1;k<=half;k++){
+    var f=k*binHz;
+    if(f>=65 && f<=2100){
+      var midi=Math.round(12*Math.log2(f/440))+69;
+      pcOfBin[k]=((midi%12)+12)%12;
+    } else pcOfBin[k]=255;
+    var b=255;
+    for(var bi=0;bi<CENTERS.length;bi++){
+      if(f>=CENTERS[bi]/1.4142 && f<CENTERS[bi]*1.4142){ b=bi; break; }
+    }
+    bandOfBin[k]=b;
+  }
+  var hann=new Float32Array(N);
+  for(i=0;i<N;i++) hann[i]=0.5-0.5*Math.cos(2*Math.PI*i/(N-1));
+
+  var fft=makeFFT(N);
+  var re=new Float32Array(N), im=new Float32Array(N);
+  var prevMag=new Float32Array(half+1);
+  var onsetEnv=[], chromaFrames=[], rmsFrames=[];
+  var bandE=new Float64Array(CENTERS.length);
+  var sumF=0, sumM=0;
+  var frames=0;
+
+  for(var off=0; off+N<=n; off+=hop){
+    var ss=0;
+    for(i=0;i<N;i++){ var v=mono[off+i]; ss+=v*v; re[i]=v*hann[i]; im[i]=0; }
+    rmsFrames.push(Math.sqrt(ss/N));
+    fft(re,im);
+    var flux=0;
+    var chr=new Float32Array(12);
+    for(k=1;k<=half;k++){
+      var m=Math.sqrt(re[k]*re[k]+im[k]*im[k]);
+      var lm=Math.log1p(m);
+      var d=lm-prevMag[k];
+      if(d>0) flux+=d;
+      prevMag[k]=lm;
+      var e=m*m;
+      var bb=bandOfBin[k];
+      if(bb!==255) bandE[bb]+=e;
+      if(k>0){ sumF+=k*binHz*m; sumM+=m; }
+      var pc=pcOfBin[k];
+      if(pc!==255) chr[pc]+=m;
+    }
+    onsetEnv.push(flux);
+    chromaFrames.push(chr);
+    frames++;
+    if((frames&63)===0){
+      prog(Math.min(75, 8+72*off/n), "Спектральный анализ… "+Math.round(100*off/n)+"%");
+      await tick();
+    }
+  }
+
+  prog(78, "Громкость и динамика (LUFS по EBU R128)…");
+  await tick();
+  var y=mono.slice();
+  kWeight(y, sr);
+  var loud=loudnessStats(y, sr);
+  y=null;
+
+  prog(84, "Стерео, пики, клиппинг…");
+  await tick();
+  /* стерео + пики + клиппинг + DC */
+  var L=actxBufCh(0), Rr=S.ch>1 ? actxBufCh(1) : null;
+  var sxy=0, sx=0, sy=0, mR=0, mS=0, lxy=0, ll=0, rl=0;
+  var aLP=1-Math.exp(-2*Math.PI*150/sr), lLP=0, rLP=0;
+  var peak=0, dc=0, clipN=0, run=0, maxRun=0, TH=0.999;
+  for(i=0;i<n;i++){
+    var l=L[i], r=Rr?Rr[i]:l;
+    sxy+=l*r; sx+=l*l; sy+=r*r;
+    var mm=(l+r)*0.70711, sd=(l-r)*0.70711;
+    mR+=mm*mm; mS+=sd*sd;
+    lLP+=aLP*(l-lLP); rLP+=aLP*(r-rLP);
+    lxy+=lLP*rLP; ll+=lLP*lLP; rl+=rLP*rLP;
+    var al=Math.abs(l), ar=Rr?Math.abs(r):al;
+    var pk=al>ar?al:ar;
+    if(pk>peak) peak=pk;
+    dc+=l;
+    if(al>=TH){ clipN++; run++; if(run>maxRun) maxRun=run; } else run=0;
+  }
+  var corr = sx>0&&sy>0 ? sxy/Math.sqrt(sx*sy) : 1;
+  var corrLow = ll>0&&rl>0 ? lxy/Math.sqrt(ll*rl) : 1;
+  var widthDb = mR>0 ? 20*Math.log10(Math.sqrt(mS/n)/Math.sqrt(mR/n)+1e-12) : -99;
+  var R={};
+  R.frames=frames;
+  R.lufsInt=loud.int; R.lufsMom=loud.mom; R.lufsSt=loud.st; R.lra=loud.lra; R.loudOk=loud.ok;
+  R.peakDb=20*Math.log10(peak+1e-12);
+  R.clipPct=100*clipN/n; R.maxRun=maxRun;
+  R.dc=dc/n;
+  R.corr=S.ch>1?corr:1; R.corrLow=S.ch>1?corrLow:1;
+  R.widthDb=S.ch>1?widthDb:-99;
+  R.monoFile=S.ch<2;
+
+  prog(90, "Ритм и тональность…");
+  await tick();
+  var bpmRes=detectBPM(onsetEnv, fps);
+  R.bpm = bpmRes ? bpmRes.bpm : null;
+  R.bpmConf = bpmRes ? bpmRes.conf : null;
+  R.bpmAlt = bpmRes ? bpmRes.alt : null;
+
+  /* хрома: медиана по громким кадрам */
+  var sortedRms=rmsFrames.slice().sort(function(a,b){return a-b;});
+  var thr=0.15*pctile(sortedRms,90);
+  var sel=[];
+  for(i=0;i<frames;i++) if(rmsFrames[i]>thr) sel.push(chromaFrames[i]);
+  if(sel.length<8) for(i=0;i<frames;i++) sel.push(chromaFrames[i]);
+  var chroma=new Float64Array(12);
+  for(var b2=0;b2<12;b2++){
+    var col=sel.map(function(fr){return fr[b2];}).sort(function(a,b){return a-b;});
+    chroma[b2]=col[col.length>>1];
+  }
+  var mx=0;
+  for(b2=0;b2<12;b2++) if(chroma[b2]>mx) mx=chroma[b2];
+  if(mx>0) for(b2=0;b2<12;b2++) chroma[b2]/=mx;
+  R.key=detectKey(chroma);
+
+  R.centroid = sumM>0 ? sumF/sumM : 0;
+  R.bands=[];
+  var totE=0, eB=0, eM=0, eH=0;
+  for(b2=0;b2<CENTERS.length;b2++){
+    var db=10*Math.log10(bandE[b2]/frames+1e-20);
+    R.bands.push(db);
+    totE+=bandE[b2];
+    var fc=CENTERS[b2];
+    if(fc<150) eB+=bandE[b2];
+    else if(fc<2000) eM+=bandE[b2];
+    else eH+=bandE[b2];
+  }
+  R.shareBass=totE>0?eB/totE:0;
+  R.shareMid=totE>0?eM/totE:0;
+  R.shareHigh=totE>0?eH/totE:0;
+  return R;
+}
+function actxBufCh(c){ return S.buf.getChannelData(c); }
+
+/* ---------- отрисовка ---------- */
+function setupCanvas(cv){
+  var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(50, Math.round(r.width*dpr));
+  cv.height=Math.max(30, Math.round(r.height*dpr));
+  var g=cv.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+  return g;
+}
+var waveOff=null, waveCtx=null;
+function buildWaveOff(){
+  var cv=$("wave"), dpr=window.devicePixelRatio||1;
+  waveOff=document.createElement("canvas");
+  waveOff.width=cv.width; waveOff.height=cv.height;
+  var g=waveOff.getContext("2d");
+  g.setTransform(dpr,0,0,dpr,0,0);
+  var W=cv.width/dpr, H=cv.height/dpr, mid=H/2;
+  var grad=g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,"#a78bfa"); grad.addColorStop(0.5,"#7c5cf6"); grad.addColorStop(1,"#4c3ad6");
+  g.fillStyle=grad;
+  var n=S.mono.length, cols=Math.max(200, Math.floor(W)), per=Math.floor(n/cols)||1;
+  for(var c=0;c<cols;c++){
+    var mn=1e9, mxx=-1e9;
+    var e=Math.min(n,(c+1)*per);
+    for(var i=c*per;i<e;i++){
+      var v=S.mono[i];
+      if(v<mn) mn=v;
+      if(v>mxx) mxx=v;
+    }
+    if(mn>mxx){ mn=0; mxx=0; }
+    var y0=mid-mxx*mid*0.92, y1=mid-mn*mid*0.92;
+    g.fillRect(c, y0, 1, Math.max(1, y1-y0));
+  }
+  g.fillStyle="#2a3350";
+  g.fillRect(0, mid-0.5, W, 1);
+}
+function drawWave(){
+  if(!waveOff) return;
+  var cv=$("wave"), g=waveCtx;
+  var W=cv.clientWidth, H=cv.clientHeight;
+  g.clearRect(0,0,W,H);
+  g.drawImage(waveOff,0,0,W,H);
+  var x=curPos()/S.dur*W;
+  g.fillStyle="rgba(139,92,246,0.25)";
+  g.fillRect(0,0,x,H);
+  g.fillStyle="#22d3ee";
+  g.fillRect(Math.max(0,x-1),0,2,H);
+  $("time").textContent = fmtTime(curPos())+" / "+fmtTime(S.dur);
+}
+function drawSpec(R){
+  var cv=$("spec"), g=setupCanvas(cv);
+  var W=cv.clientWidth, H=cv.clientHeight;
+  var pad=6, labelH=14, bh=H-labelH-6;
+  var maxDb=-Infinity;
+  for(var i=0;i<R.bands.length;i++) if(R.bands[i]>maxDb) maxDb=R.bands[i];
+  var floorDb=maxDb-66;
+  var nb=R.bands.length, bw=W/nb;
+  var grad=g.createLinearGradient(0,pad,0,pad+bh);
+  grad.addColorStop(0,"#22d3ee"); grad.addColorStop(0.55,"#8b5cf6"); grad.addColorStop(1,"#312e81");
+  var labels={2:"31",5:"63",8:"125",11:"250",14:"500",17:"1к",20:"2к",23:"4к",26:"8к",29:"16к"};
+  for(i=0;i<nb;i++){
+    var db=Math.max(floorDb, R.bands[i]);
+    var h=(db-floorDb)/(maxDb-floorDb)*bh;
+    g.fillStyle=grad;
+    g.fillRect(i*bw+1, pad+bh-h, bw-2, h);
+    if(labels[i]!==undefined){
+      g.fillStyle="#67738c"; g.font="10px system-ui"; g.textAlign="center";
+      g.fillText(labels[i], i*bw+bw/2, H-2);
+    }
+  }
+  g.fillStyle="#2a3350"; g.fillRect(0,pad+bh,W,1);
+}
+function specHintList(R){
+  var out=[];
+  var shB=Math.round(R.shareBass*100), shM=Math.round(R.shareMid*100), shH=Math.round(R.shareHigh*100);
+  out.push("Распределение энергии: бас (<150 Гц) — "+shB+"%, середина (150–2000 Гц) — "+shM+"%, верх (>2 кГц) — "+shH+"%. Центроид: "+fmtHz(R.centroid)+".");
+  var db125=(R.bands[6]+R.bands[7])/2, db350=(R.bands[11]+R.bands[12]+R.bands[13])/3;
+  if(db350-db125>3) out.push("Подъём в районе 250–500 Гц — возможна «коробочность»/гулкость. Лечится вырезом −2…−4 дБ на 300–400 Гц.");
+  if(shB>45) out.push("Очень много энергии ниже 150 Гц — на колонках ноутбука её не слышно, проверяй баланс на наушниках.");
+  if(shH<8) out.push("Мало энергии выше 2 кГц — звук может казаться тусклым, подумай про «воздух» на 8–12 кГц.");
+  if(R.centroid>6000) out.push("Баланс яркий, «воздушный» — следи, чтобы не резало ухо на громкости.");
+  return out;
+}
+function statusIcon(s){ return s==="ok" ? "✓" : (s==="warn" ? "!" : "✖"); }
+
+/* ---------- таблица мастеринга ---------- */
+function verdictRows(R){
+  var rows=[];
+  var st;
+  var d14=R.lufsInt-(-14);
+  if(R.lufsInt>=-16 && R.lufsInt<=-9) st="ok"; else st="warn";
+  rows.push({p:"Громкость (интегральная)", v:R.lufsInt.toFixed(1)+" LUFS", s:st,
+    c: st==="ok"
+      ? "Норма для стриминга. Spotify/YouTube выровняют к −14 LUFS (дельта "+(d14>0?"+":"")+d14.toFixed(1)+" дБ)."
+      : (R.lufsInt<-16
+          ? "Тише нормы на "+Math.abs(d14).toFixed(1)+" дБ — платформы не докрутят, трек потеряет напор. Подними лимитером/клипом."
+          : "Громче нормы на "+d14.toFixed(1)+" дБ — платформы приглушат. Это ок для клубного звучания, но следи за лимитером.")});
+  st = R.peakDb<=-1 ? "ok" : (R.peakDb<=-0.3 ? "warn" : "bad");
+  rows.push({p:"Пик", v:fmtDb(R.peakDb), s:st,
+    c: st==="ok" ? "Есть запас до 0 дБFS — хорошо для кодеков (цель ≤ −1 дБ)."
+      : (st==="warn" ? "Пик близко к потолку — возможны межсэмпловые перегрузы после mp3/AAC."
+        : "Пик почти в потолке — очень вероятный цифровой клиппинг на кодеках. Оставь запас −1 дБ.")});
+  st = (R.clipPct<0.01 && R.maxRun<8) ? "ok" : (R.clipPct<0.1 ? "warn" : "bad");
+  rows.push({p:"Клиппинг", v:R.clipPct.toFixed(3)+"%"+(R.maxRun>0?" · серия до "+R.maxRun+" сэмплов":""), s:st,
+    c: st==="ok" ? "Перегрузок нет."
+      : (st==="warn" ? "Есть касания потолка — единичные, обычно неслышно." :
+        "Заметный клиппинг: сэмплы упираются в 0 дБFS подряд. Снизь уровень мастера и перелимитируй.")});
+  st = (R.lra>=3 && R.lra<=15) ? "ok" : (R.lra>=1.5 && R.lra<=18 ? "warn" : "bad");
+  rows.push({p:"Динамика (LRA)", v:R.lra.toFixed(1)+" дБ", s:st,
+    c: st==="ok" ? "Живой разброс громкости: тише/громче секции читаются."
+      : (R.lra<3 ? "Очень сжато — громкость ровная «в стену». Утомляет на длинных прослушиваниях."
+        : "Очень широкий разброс — тихие места могут проваливаться на фоновом прослушивании.")});
+  if(R.monoFile){
+    rows.push({p:"Стерео", v:"моно-файл", s:"warn", c:"Файл одноканальный — стерео-метрики недоступны."});
+  } else {
+    st = (R.corr>=0.1 && R.corr<=0.95) ? "ok" : (R.corr>0.95 || R.corr>=0 ? "warn" : "bad");
+    rows.push({p:"Корреляция стерео", v:R.corr.toFixed(2), s:st,
+      c: st==="ok" ? "Здоровая стерео-картинка."
+        : (R.corr>0.95 ? "Почти моно — стерео-ширины почти нет. S-сигнал очень слабый."
+          : "Низкая корреляция — возможны фазовые проблемы; в моно часть звука пропадёт.")});
+    st = R.corrLow>=0.8 ? "ok" : (R.corrLow>=0.5 ? "warn" : "bad");
+    rows.push({p:"Бас в моно (<150 Гц)", v:R.corrLow.toFixed(2), s:st,
+      c: st==="ok" ? "Низ моносовместим — клубные/моно-системы отыграют корректно."
+        : (st==="warn" ? "Бас частично в противофазе — на моно-системе станет тише."
+          : "Бас сильно развален по фазе — в моно/на виниле низ почти исчезнет. Сделай низ моно.")});
+    st = (R.widthDb>=-18 && R.widthDb<=0) ? "ok" : "warn";
+    rows.push({p:"Ширина стерео (S/M)", v:R.widthDb.toFixed(1)+" дБ", s:st,
+      c: R.widthDb<-18 ? "Очень узкое стерео." : (R.widthDb>0 ? "Сайд громче мида — необычно, проверь." : "Ширина в норме.")});
+  }
+  st = Math.abs(R.dc)<0.001 ? "ok" : "warn";
+  rows.push({p:"Смещение DC", v:R.dc.toFixed(5), s:st,
+    c: st==="ok" ? "В норме." : "Есть постоянная составляющая — съедает запас по клиппингу. Убери high-pass 20 Гц."});
+  return rows;
+}
+
+/* ---------- рендер ---------- */
+function render(R){
+  var mins=Math.floor(S.dur/60), secs=Math.round(S.dur%60);
+  var br=Math.round(S.size*8/S.dur/1000);
+  $("infoRow").innerHTML =
+    cell("Файл", S.name)+cell("Длительность", mins+":"+String(secs).padStart(2,"0"))+
+    cell("Частота", (S.sr/1000)+" кГц")+cell("Каналы", S.ch===1?"моно":"стерео")+
+    cell("Размер", (S.size/1048576).toFixed(1)+" МБ")+cell("Битрейт", br+" кбит/с");
+
+  $("bpmNum").innerHTML = R.bpm ? R.bpm.toFixed(1)+" <small>BPM</small>" : "—";
+  $("bpmDet").innerHTML = R.bpm
+    ? "уверенность ~<b>"+R.bpmConf+"%</b>"+(R.bpmAlt ? " · вариант "+R.bpmAlt.dir+": "+R.bpmAlt.bpm.toFixed(1) : "")
+    : "трек слишком короткий/ровный для оценки темпа";
+  $("keyNum").textContent = R.key.en;
+  $("keyDet").innerHTML = R.key.name+" · Camelot <b>"+R.key.camelot+"</b> · уверенность ~<b>"+R.key.conf+"%</b><br>альтернативы: "+R.key.alts;
+
+  var cards="";
+  cards+=mcard("LUFS интегральная", R.lufsInt.toFixed(1), "момент. пик "+R.lufsMom.toFixed(1)+" · краткосроч. "+R.lufsSt.toFixed(1));
+  cards+=mcard("Разброс громкости", R.lra.toFixed(1)+" <small>дБ LRA</small>", R.lra<3?"очень сжато":(R.lra>15?"очень широко":"живая динамика"));
+  cards+=mcard("Пик", fmtDb(R.peakDb), R.clipPct>0? "клиппинг "+R.clipPct.toFixed(2)+"%":"без перегрузок");
+  cards+=mcard("Корреляция стерео", R.monoFile?"моно":R.corr.toFixed(2), R.monoFile?"один канал":(R.corrLow<0.5?"бас не моносовместим":(R.corrLow<0.8?"бас частично в противофазе":"бас моносовместим")));
+  cards+=mcard("Центроид спектра", fmtHz(R.centroid), R.centroid>6000?"яркий баланс":(R.centroid<1500?"тёмный баланс":"средний баланс"));
+  cards+=mcard("Ширина стерео", R.monoFile?"—":R.widthDb.toFixed(1)+" <small>дБ</small>", R.monoFile?"нет стерео":(R.widthDb<-18?"очень узко":"ок"));
+  $("metricCards").innerHTML=cards;
+
+  waveCtx=setupCanvas($("wave"));
+  buildWaveOff();
+  drawWave();
+  drawSpec(R);
+  $("specHints").innerHTML=specHintList(R).join("<br>");
+
+  var tb="";
+  var vr=verdictRows(R);
+  for(var i=0;i<vr.length;i++){
+    var r=vr[i];
+    tb+="<tr><td>"+r.p+"</td><td class='v'>"+r.v+"</td><td class='st "+r.s+"'>"+statusIcon(r.s)+"</td><td class='c'>"+r.c+"</td></tr>";
+  }
+  $("masterBody").innerHTML=tb;
+
+  $("res").style.display="block";
+  $("prog").style.display="none";
+}
+function cell(k,v){ return "<div class='cell'><div class='k'>"+k+"</div><div class='v'>"+v+"</div></div>"; }
+function mcard(k,v,c){ return "<div class='card'><div class='k'>"+k+"</div><div class='v'>"+v+"</div><div class='c'>"+c+"</div></div>"; }
+
+/* ---------- плеер ---------- */
+var playState={playing:false, offset:0, startedAt:0, src:null};
+function curPos(){
+  if(!playState.playing||!actx) return playState.offset;
+  return Math.min(S.dur, playState.offset+(actx.currentTime-playState.startedAt));
+}
+function play(){
+  if(!S.buf) return;
+  getCtx().resume();
+  if(playState.playing) pause();
+  var src=actx.createBufferSource();
+  src.buffer=S.buf;
+  src.connect(actx.destination);
+  src.start(0, Math.min(playState.offset, S.dur-0.01));
+  playState.src=src; playState.startedAt=actx.currentTime; playState.playing=true;
+  src.onended=function(){
+    if(playState.src===src){
+      playState.playing=false; playState.offset=0; playState.src=null;
+      $("playBtn").textContent="▶";
+      drawWave();
+    }
+  };
+  $("playBtn").textContent="❚❚";
+  (function loop(){ if(playState.playing){ drawWave(); requestAnimationFrame(loop); } })();
+}
+function pause(){
+  if(playState.src){
+    playState.src.onended=null;
+    try{ playState.src.stop(); }catch(e){}
+    playState.offset=curPos();
+    playState.src=null;
+  }
+  playState.playing=false;
+  $("playBtn").textContent="▶";
+  drawWave();
+}
+function seekTo(t){
+  var was=playState.playing;
+  if(was) pause();
+  playState.offset=Math.max(0, Math.min(S.dur, t));
+  drawWave();
+  if(was) play();
+}
+
+/* ---------- отчёт ---------- */
+function reportText(){
+  var R=S.R;
+  var ln="=".repeat(58);
+  var o=[];
+  o.push(ln);
+  o.push("KOLINAI TRACK ANALYZER — ОТЧЁТ ОБ АНАЛИЗЕ");
+  o.push(ln);
+  o.push("Файл: "+S.name);
+  o.push("Дата: "+new Date().toLocaleString());
+  o.push("Длительность: "+fmtTime(S.dur)+" · Частота: "+(S.sr/1000)+" кГц · Каналы: "+(S.ch===1?"моно":"стерео")+" · Размер: "+(S.size/1048576).toFixed(1)+" МБ");
+  o.push("");
+  o.push("ТЕМП И ТОНАЛЬНОСТЬ");
+  o.push("  BPM: "+(R.bpm?R.bpm.toFixed(1)+" (уверенность ~"+R.bpmConf+"%"+(R.bpmAlt?"; вариант "+R.bpmAlt.dir+" = "+R.bpmAlt.bpm.toFixed(1):"")+")":"не определён"));
+  o.push("  Тональность: "+R.key.name+" ("+R.key.en+") · Camelot "+R.key.camelot+" (уверенность ~"+R.key.conf+"%)");
+  o.push("  Альтернативные варианты: "+R.key.alts);
+  o.push("");
+  o.push("ГРОМКОСТЬ И ДИНАМИКА");
+  o.push("  Интегральная громкость: "+R.lufsInt.toFixed(1)+" LUFS");
+  o.push("  Максимальная моментальная (0.4 c): "+R.lufsMom.toFixed(1)+" LUFS");
+  o.push("  Максимальная краткосрочная (3 c): "+R.lufsSt.toFixed(1)+" LUFS");
+  o.push("  Разброс громкости LRA: "+R.lra.toFixed(1)+" дБ");
+  o.push("  Пик: "+fmtDb(R.peakDb)+" · Клиппинг: "+R.clipPct.toFixed(3)+"% (макс. серия "+R.maxRun+" сэмплов)");
+  o.push("");
+  o.push("СТЕРЕО");
+  if(R.monoFile){
+    o.push("  Моно-файл — стерео-метрики недоступны.");
+  } else {
+    o.push("  Корреляция каналов: "+R.corr.toFixed(2)+" · Ширина S/M: "+R.widthDb.toFixed(1)+" дБ");
+    o.push("  Корреляция низа (<150 Гц, моносовместимость баса): "+R.corrLow.toFixed(2));
+  }
+  o.push("");
+  o.push("СПЕКТР");
+  o.push("  Центроид: "+fmtHz(R.centroid));
+  o.push("  Энергия: бас "+Math.round(R.shareBass*100)+"% / середина "+Math.round(R.shareMid*100)+"% / верх "+Math.round(R.shareHigh*100)+"%");
+  o.push("  Полосы (дБ): "+R.bands.map(function(v){return v.toFixed(0);}).join(" "));
+  o.push("");
+  o.push("ПРОВЕРКА МАСТЕРИНГА (цель стриминга: −14 LUFS, пик ≤ −1 дБ)");
+  verdictRows(R).forEach(function(r){
+    o.push("  ["+statusIcon(r.s)+"] "+r.p+": "+r.v+" — "+r.c);
+  });
+  o.push("");
+  o.push("Наблюдения по спектру:");
+  specHintList(R).forEach(function(h){ o.push("  • "+h); });
+  o.push("");
+  o.push(ln);
+  o.push("Анализ выполнен локально в браузере, файл никуда не отправлялся.");
+  o.push("Инструмент: KolinAI Track Analyzer (LUFS по EBU R128, тональность по Крумханслу, BPM по спектральному потоку).");
+  return o.join("\r\n");
+}
+function downloadReport(){
+  var blob=new Blob(["\uFEFF"+reportText()], {type:"text/plain;charset=utf-8"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=S.name.replace(/\.[^.]+$/,"")+"_analiz.txt";
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+}
+
+/* ---------- ввод файла ---------- */
+function setProg(p, txt){
+  $("barfill").style.width=p+"%";
+  $("ptext").textContent=txt;
+}
+function showError(msg){
+  $("errMsg").textContent=msg;
+  $("errMsg").style.display="block";
+  $("drop").classList.add("err");
+}
+async function handleFile(file){
+  $("errMsg").style.display="none";
+  $("drop").classList.remove("err");
+  $("res").style.display="none";
+  $("prog").style.display="block";
+  setProg(3, "Декодирую аудио…");
+  try{
+    if(!file) throw new Error("файл не выбран");
+    var ab=await file.arrayBuffer();
+    var buf;
+    try{
+      buf=await getCtx().decodeAudioData(ab);
+    }catch(e){
+      throw new Error("браузер не смог декодировать этот формат — попробуй mp3 или wav");
+    }
+    pause();
+    S.buf=buf; S.sr=buf.sampleRate; S.ch=buf.numberOfChannels;
+    S.dur=buf.duration; S.name=file.name; S.size=file.size;
+    var n=buf.length;
+    var mono=new Float32Array(n);
+    for(var c=0;c<S.ch;c++){
+      var d=buf.getChannelData(c);
+      for(var i=0;i<n;i++) mono[i]+=d[i]/S.ch;
+    }
+    S.mono=mono;
+    setProg(8, "Спектральный анализ… 0%");
+    var R=await analyzeAll(setProg);
+    S.R=R;
+    setProg(99, "Рисую…");
+    await tick();
+    render(R);
+  }catch(err){
+    $("prog").style.display="none";
+    showError("Не получилось: "+(err&&err.message?err.message:err));
+  }
+}
+$("drop").addEventListener("click", function(){ $("file").click(); });
+$("file").addEventListener("change", function(e){
+  if(e.target.files.length) handleFile(e.target.files[0]);
+  e.target.value="";
+});
+["dragenter","dragover"].forEach(function(ev){
+  $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("over"); });
+});
+["dragleave","drop"].forEach(function(ev){
+  $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("over"); });
+});
+$("drop").addEventListener("drop", function(e){
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+$("wave").addEventListener("click", function(e){
+  if(!S.buf) return;
+  var r=$("wave").getBoundingClientRect();
+  seekTo((e.clientX-r.left)/r.width*S.dur);
+});
+$("playBtn").addEventListener("click", function(){
+  if(!S.buf) return;
+  if(playState.playing) pause(); else play();
+});
+$("txtBtn").addEventListener("click", downloadReport);
+$("copyBtn").addEventListener("click", function(){
+  navigator.clipboard.writeText(reportText()).then(function(){
+    $("copyBtn").textContent="Скопировано ✓";
+    setTimeout(function(){ $("copyBtn").textContent="Копировать отчёт"; }, 1500);
+  });
+});
+$("againBtn").addEventListener("click", function(){
+  pause(); S.buf=null; S.R=null; waveOff=null;
+  $("res").style.display="none";
+  $("drop").style.display="";
+  $("file").click();
+});
+window.addEventListener("resize", function(){
+  if(S.R){
+    waveCtx=setupCanvas($("wave"));
+    buildWaveOff();
+    waveCtx=setupCanvas($("wave"));
+    drawWave();
+    drawSpec(S.R);
+  }
+});
+</script>
+</body>
+</html>
